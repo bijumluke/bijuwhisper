@@ -1,0 +1,59 @@
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f8f9fa;
+}
+.container {
+  display: flex;
+  height: 100vh;
+}
+.controls {
+  width: 25%;
+  padding: 20px;
+  background: #ffffff;
+  border-right: 1px solid #ccc;
+}
+.output {
+  width: 75%;
+  padding: 20px;
+}
+#transcript {
+  background: #f0f0f0;
+  padding: 15px;
+  border: 1px solid #ccc;
+  min-height: 400px;
+  max-height: 60vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.cheat-sheet-popup {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 25%;
+  background: #eef6ff;
+  border: 1px solid #999;
+  padding: 12px;
+  max-width: 90%;
+  z-index: 9999;
+}
+.cheat-sheet-popup ul {
+  margin: 0;
+  padding: 0;
+  list-style: disc;
+}
+button {
+  display: block;
+  margin-top: 10px;
+  padding: 10px;
+}
+.actions button {
+  display: inline-block;
+  margin-right: 10px;
+}
+.error {
+  color: red;
+  font-weight: bold;
+}
