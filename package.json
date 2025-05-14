@@ -1,6 +1,6 @@
 {
   "dependencies": {
     "axios": "^1.6.5",
-    "formidable": "^3.5.0"
+    "multiparty": "^4.2.2"
   }
 }
