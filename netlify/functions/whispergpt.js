@@ -1,6 +1,7 @@
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const FormData = require("form-data");
 
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
@@ -62,20 +63,25 @@ ${stylePrompts[style] || ""}
 ${customPrompt}
     `;
 
+    // Whisper API (using form-data)
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(audioPath));
+    formData.append("model", "whisper-1");
+
     const whisperRes = await axios.post(
       "https://api.openai.com/v1/audio/transcriptions",
-      fs.createReadStream(audioPath),
+      formData,
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "multipart/form-data"
-        },
-        params: { model: "whisper-1" }
+          ...formData.getHeaders(),
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        }
       }
     );
 
     const whisperText = whisperRes.data.text;
 
+    // GPT API
     const chatRes = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
