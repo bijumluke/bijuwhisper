@@ -1,4 +1,3 @@
-
 let mediaRecorder, audioChunks = [];
 let audioBlob = null;
 
@@ -32,15 +31,29 @@ startBtn.onclick = async () => {
     formData.append("style", document.getElementById("style-select").value);
     formData.append("customPrompt", document.getElementById("custom-prompt").value);
 
-    transcriptBox.innerHTML += "\n[Processing...]\n";
+    const statusLine = document.createElement("div");
+    statusLine.id = "status-line";
+    statusLine.style.color = "gray";
+    statusLine.textContent = "[Processing...]";
+    transcriptBox.parentElement.insertBefore(statusLine, transcriptBox);
 
     const response = await fetch("/.netlify/functions/whispergpt", {
       method: "POST",
       body: formData
     });
 
+    if (statusLine) statusLine.remove();
+
     const result = await response.json();
-    transcriptBox.innerHTML += "\n" + (result.result || `[ERROR] ${result.error}`) + "\n";
+
+    if (result.result) {
+      transcriptBox.innerText += "\n" + result.result + "\n";
+    } else {
+      const errorLine = document.createElement("div");
+      errorLine.style.color = "red";
+      errorLine.textContent = `[ERROR] ${result.error}`;
+      transcriptBox.parentElement.insertBefore(errorLine, transcriptBox);
+    }
   };
 
   mediaRecorder.start();
@@ -53,9 +66,12 @@ stopBtn.onclick = () => {
 };
 
 reloadBtn.onclick = () => {
-  transcriptBox.innerHTML = "";
+  transcriptBox.innerText = "";
   audioBlob = null;
   downloadAudioBtn.disabled = true;
+
+  const oldStatus = document.getElementById("status-line");
+  if (oldStatus) oldStatus.remove();
 };
 
 copyBtn.onclick = () => {
@@ -63,6 +79,7 @@ copyBtn.onclick = () => {
 };
 
 downloadAudioBtn.onclick = () => {
+  if (!audioBlob) return;
   const url = URL.createObjectURL(audioBlob);
   const a = document.createElement("a");
   a.href = url;
@@ -78,3 +95,4 @@ downloadTextBtn.onclick = () => {
   a.download = "transcript.txt";
   a.click();
 };
+
