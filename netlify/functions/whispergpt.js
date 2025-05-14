@@ -12,11 +12,12 @@ exports.handler = async (event, context) => {
   }
 
   return new Promise((resolve, reject) => {
-    const form = formidable({
-      multiples: false,
-      uploadDir: "/tmp",
-      keepExtensions: true
-    });
+  const form = new formidable.IncomingForm({
+  multiples: false,
+  uploadDir: "/tmp",
+  keepExtensions: true
+});
+
 
     // Netlify gives event.body as base64 string when it's multipart
     const contentType = event.headers["content-type"] || event.headers["Content-Type"];
