@@ -1,7 +1,7 @@
 const axios = require("axios");
-const formidable = require("formidable");
-const { Buffer } = require("buffer");
 const fs = require("fs");
+const path = require("path");
+const multiparty = require("multiparty");
 
 exports.handler = async (event, context) => {
   if (event.httpMethod !== "POST") {
@@ -12,24 +12,9 @@ exports.handler = async (event, context) => {
   }
 
   return new Promise((resolve, reject) => {
-  const form = new formidable.IncomingForm({
-  multiples: false,
-  uploadDir: "/tmp",
-  keepExtensions: true
-});
+    const form = new multiparty.Form({ uploadDir: "/tmp" });
 
-
-    // Netlify gives event.body as base64 string when it's multipart
-    const contentType = event.headers["content-type"] || event.headers["Content-Type"];
-    const bodyBuffer = Buffer.from(event.body, "base64");
-
-    // Create a fake request and response object to use with formidable
-    const req = new require("stream").Readable();
-    req.push(bodyBuffer);
-    req.push(null); // end the stream
-    req.headers = { "content-type": contentType };
-
-    form.parse(req, async (err, fields, files) => {
+    form.parse(event, async (err, fields, files) => {
       if (err) {
         return resolve({
           statusCode: 500,
@@ -37,25 +22,19 @@ exports.handler = async (event, context) => {
         });
       }
 
-      const audioPath = files.audio?.filepath;
-      if (!audioPath) {
-        return resolve({
-          statusCode: 400,
-          body: JSON.stringify({ error: "Audio file not found" })
-        });
-      }
+      try {
+        const audioPath = files.audio[0].path;
+        const style = fields.style[0] || "general";
+        const userPrompt = (fields.customPrompt?.[0] || "").substring(0, 500).replace(/[<>]/g, "");
 
-      const style = fields.style || "general";
-      const userPrompt = (fields.customPrompt || "").substring(0, 500).replace(/[<>]/g, "");
+        const stylePrompts = {
+          general: "",
+          medical: "Format the output using clinical documentation style.",
+          legal: "Format the output in formal legal English.",
+          prompt: "Format this as a prompt for a language model."
+        };
 
-      const stylePrompts = {
-        general: "",
-        medical: "Format the output using clinical documentation style.",
-        legal: "Format the output in formal legal English.",
-        prompt: "Format this as a prompt for a language model."
-      };
-
-      const systemPrompt = `
+        const systemPrompt = `
 You are a transcription formatter. Interpret spoken punctuation:
 - "period" → .
 - "comma" → ,
@@ -65,16 +44,15 @@ You are a transcription formatter. Interpret spoken punctuation:
 Context: "period period" → ".", "menstrual period period" → "menstrual period."
 ${stylePrompts[style]}
 ${userPrompt}
-      `;
+        `;
 
-      try {
-        // Step 1: Whisper transcription
+        // Whisper transcription
         const whisperRes = await axios.post(
           "https://api.openai.com/v1/audio/transcriptions",
           fs.createReadStream(audioPath),
           {
             headers: {
-              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
               "Content-Type": "multipart/form-data"
             },
             params: {
@@ -85,7 +63,7 @@ ${userPrompt}
 
         const whisperText = whisperRes.data.text;
 
-        // Step 2: GPT formatting
+        // GPT formatting
         const chatRes = await axios.post(
           "https://api.openai.com/v1/chat/completions",
           {
@@ -97,7 +75,7 @@ ${userPrompt}
           },
           {
             headers: {
-              "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
               "Content-Type": "application/json"
             }
           }
@@ -110,10 +88,9 @@ ${userPrompt}
           body: JSON.stringify({ result: finalText })
         });
       } catch (error) {
-        const errorMsg = error?.response?.data?.error?.message || error.message || "Unknown error";
         return resolve({
           statusCode: 500,
-          body: JSON.stringify({ error: errorMsg })
+          body: JSON.stringify({ error: error.message || "Unknown error" })
         });
       }
     });
