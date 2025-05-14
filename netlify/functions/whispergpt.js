@@ -12,27 +12,32 @@ exports.handler = async function (event) {
     const boundary = contentType.split("boundary=")[1];
     const bodyBuffer = Buffer.from(event.body, "base64");
 
-    const parts = bodyBuffer.toString().split(`--${boundary}`);
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    const parts = bodyBuffer
+      .toString("binary")
+      .split(boundaryBuffer.toString("binary"))
+      .filter(part => part.trim() !== "" && part.trim() !== "--");
+
     let audioBuffer = null;
     let style = "general";
     let customPrompt = "";
 
     for (const part of parts) {
       if (part.includes('name="audio"') && part.includes("filename=")) {
-        const splitIndex = part.indexOf("\r\n\r\n");
-        const binary = part.substring(splitIndex + 4).trimEnd();
-        audioBuffer = Buffer.from(binary, "binary");
+        const separator = "\r\n\r\n";
+        const startIndex = part.indexOf(separator);
+        const headers = part.substring(0, startIndex);
+        const body = part.substring(startIndex + separator.length);
+        audioBuffer = Buffer.from(body, "binary");
       } else if (part.includes('name="style"')) {
-        const value = part.split("\r\n\r\n")[1];
-        if (value) style = value.trim();
+        style = part.split("\r\n\r\n")[1]?.trim() || "general";
       } else if (part.includes('name="customPrompt"')) {
-        const value = part.split("\r\n\r\n")[1];
-        if (value) customPrompt = value.trim().replace(/[<>]/g, "").substring(0, 500);
+        customPrompt = part.split("\r\n\r\n")[1]?.trim().replace(/[<>]/g, "").substring(0, 500) || "";
       }
     }
 
     if (!audioBuffer) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Audio file missing" }) };
+      return { statusCode: 400, body: JSON.stringify({ error: "Audio file missing or malformed." }) };
     }
 
     const audioPath = path.join("/tmp", `audio_${Date.now()}.webm`);
@@ -57,7 +62,6 @@ ${stylePrompts[style] || ""}
 ${customPrompt}
     `;
 
-    // Whisper API
     const whisperRes = await axios.post(
       "https://api.openai.com/v1/audio/transcriptions",
       fs.createReadStream(audioPath),
@@ -66,15 +70,12 @@ ${customPrompt}
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "multipart/form-data"
         },
-        params: {
-          model: "whisper-1"
-        }
+        params: { model: "whisper-1" }
       }
     );
 
     const whisperText = whisperRes.data.text;
 
-    // GPT API
     const chatRes = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -92,11 +93,9 @@ ${customPrompt}
       }
     );
 
-    const finalText = chatRes.data.choices[0].message.content;
-
     return {
       statusCode: 200,
-      body: JSON.stringify({ result: finalText })
+      body: JSON.stringify({ result: chatRes.data.choices[0].message.content })
     };
   } catch (error) {
     return {
@@ -105,4 +104,5 @@ ${customPrompt}
     };
   }
 };
+
 
